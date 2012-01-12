@@ -297,14 +297,10 @@ T[] jsonDecode_impl(A : T[], T, R)(ref R input) if(isInputRange!R && isSomeChar!
     auto first = true;
     auto app = appender!(T[]);
 
-    while(!input.empty) {
-        if(first) {
-            /* First character should be '[' */
-            enforceChar(input, '[', true);
-            enforceEx!JsonException(!input.empty, "premature end of input");
-            first = false;
-        }
+    /* First character should be '[' */
+    enforceChar(input, '[', true);
 
+    while(!input.empty) {
         if(input.front == ']') {
             /* ] is the last character */
             input.popFront;
