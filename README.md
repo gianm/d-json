@@ -22,7 +22,7 @@ d-json
 
         writeln("your plugins are:");
         foreach(Variant plugin; obj["conf"]["plugins"]) {
-            writeln("- ", to!string(plugin));
+            writeln("- ", plugin);
         }
 
         writeln("back to json: ", jsonEncode(obj));
