@@ -2,7 +2,6 @@ d-json
 ======
 
     import jsonx;
-    import std.conv;
     import std.stdio;
     import std.variant;
 
