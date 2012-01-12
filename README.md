@@ -1,9 +1,6 @@
 d-json
 ======
 
-SYNOPSIS
---------
-
     import jsonx;
     import std.conv;
     import std.stdio;
