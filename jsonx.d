@@ -274,8 +274,7 @@ T jsonDecode_impl(T, R)(ref R input)
             foreach(i, oval; obj.tupleof) {
                 /* obj.tupleof[i].stringof is something like "obj.member".
                  * We just want "member" */
-                enum okey = obj.tupleof[i].stringof.find('.')[1..$];
-                if(key == okey) {
+                if(key == obj.tupleof[i].stringof.find('.')[1..$]) {
                     /* Assigning to oval doesn't seem to work, but obj.tupleof[i] does */
                     obj.tupleof[i] = jsonDecode_impl!(typeof(obj.tupleof[i]))(input);
                     didRead = true;
