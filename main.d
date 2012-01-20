@@ -38,8 +38,6 @@ void main() {
     auto f = File("test.txt", "w");
     auto fw = File.LockingTextWriter(f);
 
-    foreach(i; 0..200000) {
-        jsonEncode(x, fw);
-        fw.put("\n");
-    }
+    jsonEncode(x, fw);
+    fw.put("\n");
 }
