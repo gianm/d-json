@@ -24,14 +24,14 @@ public:
 struct JsonNull { /* empty type... */ }
 
 /* Encode to a string in memory */
-R jsonEncode(T, R = string)(T obj) if(isSomeString!R) {
+R jsonEncode(R = string, T)(T obj) if(isSomeString!R) {
     auto app = appender!R;
     jsonEncode_impl(obj, app);
     return app.data;
 }
 
 /* Encode to any output range */
-R jsonEncode(T, R)(T obj, R range) if(isOutputRange!(R, dchar)) {
+R jsonEncode(R, T)(T obj, R range) if(isOutputRange!(R, dchar)) {
     jsonEncode_impl(obj, range);
     return range;
 }
@@ -535,6 +535,18 @@ unittest {
     /* String encodes */
     assert(jsonEncode("he\u03B3l\"lo") == "\"he\u03B3l\\\"lo\"");
     assert(jsonEncode("\U0001D11E and \u0392") == "\"\U0001D11E and \u0392\"");
+
+    /* Mix string/dstring encode and decode */
+    string narrowStr = "\"\\uD834\\uDD1E \U0001D11E\"";
+    dstring wideLoad = "\"\\uD834\\uDD1E \U0001D11E\"";
+    assert(jsonDecode!string(wideLoad) == "\U0001D11E \U0001D11E");
+    assert(jsonDecode!dstring(wideLoad) == "\U0001D11E \U0001D11E");
+    assert(jsonDecode!string(narrowStr) == "\U0001D11E \U0001D11E");
+    assert(jsonDecode!dstring(narrowStr) == "\U0001D11E \U0001D11E");
+    assert(jsonEncode!string(jsonDecode!string(wideLoad)) == "\"\U0001D11E \U0001D11E\"");
+    assert(jsonEncode!dstring(jsonDecode!string(wideLoad)) == "\"\U0001D11E \U0001D11E\"");
+    assert(jsonEncode!string(jsonDecode!dstring(wideLoad)) == "\"\U0001D11E \U0001D11E\"");
+    assert(jsonEncode!dstring(jsonDecode!dstring(wideLoad)) == "\"\U0001D11E \U0001D11E\"");
 
     /* Structured decode into user-defined type */
     auto x = jsonDecode!X(`null`);
