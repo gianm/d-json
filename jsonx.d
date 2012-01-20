@@ -36,7 +36,7 @@ R jsonEncode(T, R)(T obj, R range) if(isOutputRange!(R, dchar)) {
     return range;
 }
 
-T jsonDecode(T = Variant, R)(R input) if(isInputRange!R && isSomeChar!(ElementType!R)) {
+T jsonDecode(T = Variant, R)(R input) if(isInputCharRange!R) {
     auto val = jsonDecode_impl!T(input);
     enforceEx!JsonException(input.empty, "garbage at end of stream");
     return val;
@@ -44,7 +44,11 @@ T jsonDecode(T = Variant, R)(R input) if(isInputRange!R && isSomeChar!(ElementTy
 
 private:
 
-void enforceChar(R)(ref R input, dchar c, bool sw) if (isInputRange!R && isSomeChar!(ElementType!R)) {
+template isInputCharRange(R) {
+    enum isInputCharRange = isInputRange!R && isSomeChar!(ElementType!R);
+}
+
+void enforceChar(R)(ref R input, dchar c, bool sw) if (isInputCharRange!R) {
     enforceEx!JsonException(!input.empty, "premature end of input");
     enforceEx!JsonException(input.front == c, "expected " ~ to!string(c) ~ ", saw " ~ to!string(input.front));
     input.popFront;
@@ -52,7 +56,7 @@ void enforceChar(R)(ref R input, dchar c, bool sw) if (isInputRange!R && isSomeC
         skipWhite(input);
 }
 
-void skipWhite(R)(ref R input) if (isInputRange!R && isSomeChar!(ElementType!R)) {
+void skipWhite(R)(ref R input) if (isInputCharRange!R) {
     while(!input.empty && isWhite(input.front))
         input.popFront;
 }
@@ -197,7 +201,7 @@ void jsonEncode_impl(S : T[K], T, K, A)(S arr, ref A app) if(isSomeString!K) {
 }
 
 /* Decode anything -> Variant */
-Variant jsonDecode_impl(T : Variant, R)(ref R input) if(isInputRange!R && isSomeChar!(ElementType!R)) {
+Variant jsonDecode_impl(T : Variant, R)(ref R input) if(isInputCharRange!R) {
     Variant v;
 
     enforceEx!JsonException(!input.empty, "premature end of input");
@@ -223,7 +227,7 @@ Variant jsonDecode_impl(T : Variant, R)(ref R input) if(isInputRange!R && isSome
 
 /* Decode JSON object -> D associative array, class, or struct */
 T jsonDecode_impl(T, R)(ref R input)
-  if(isInputRange!R && isSomeChar!(ElementType!R)
+  if(isInputCharRange!R
     && (is(T == struct) || is(T == class) || isAssociativeArray!T)
     && !is(T : JsonNull))
 {
@@ -298,7 +302,7 @@ T jsonDecode_impl(T, R)(ref R input)
 }
 
 /* Decode JSON array -> D array */
-T[] jsonDecode_impl(A : T[], T, R)(ref R input) if(isInputRange!R && isSomeChar!(ElementType!R) && !isSomeString!A) {
+T[] jsonDecode_impl(A : T[], T, R)(ref R input) if(isInputCharRange!R && !isSomeString!A) {
     auto first = true;
     auto app = appender!(T[]);
 
@@ -328,7 +332,7 @@ T[] jsonDecode_impl(A : T[], T, R)(ref R input) if(isInputRange!R && isSomeChar!
 }
 
 /* Decode JSON number -> D number */
-T jsonDecode_impl(T, R)(ref R input) if(isInputRange!R && isSomeChar!(ElementType!R) && isNumeric!T) {
+T jsonDecode_impl(T, R)(ref R input) if(isInputCharRange!R && isNumeric!T) {
     try {
         return parse!T(input);
     } catch(ConvException e) {
@@ -337,7 +341,7 @@ T jsonDecode_impl(T, R)(ref R input) if(isInputRange!R && isSomeChar!(ElementTyp
 }
 
 /* Decode JSON string -> D string */
-T jsonDecode_impl(T, R)(ref R input) if(isInputRange!R && isSomeChar!(ElementType!R) && isSomeString!T) {
+T jsonDecode_impl(T, R)(ref R input) if(isInputCharRange!R && isSomeString!T) {
     auto app = Appender!T();
 
     /* For strings we can attempt to decode without copying */
@@ -462,13 +466,13 @@ T jsonDecode_impl(T, R)(ref R input) if(isInputRange!R && isSomeChar!(ElementTyp
 
 /* Decode JSON string -> char, enum */
 T jsonDecode_impl(T, R)(ref R input)
-  if(isInputRange!R && isSomeChar!(ElementType!R) && (isSomeChar!T || is(T == enum)))
+  if(isInputCharRange!R && (isSomeChar!T || is(T == enum)))
 {
     return to!T(jsonDecode_impl!string(input));
 }
 
 /* Decode JSON bool -> D bool */
-bool jsonDecode_impl(T, R)(ref R input) if(isInputRange!R && isSomeChar!(ElementType!R) && is(T == bool)) {
+bool jsonDecode_impl(T, R)(ref R input) if(isInputCharRange!R && is(T == bool)) {
     enforceEx!JsonException(!input.empty, "premature end of input");
     if(input.front == 't') {
         input.popFront;
@@ -489,7 +493,7 @@ bool jsonDecode_impl(T, R)(ref R input) if(isInputRange!R && isSomeChar!(Element
 }
 
 /* Decode JSON null -> D null */
-JsonNull jsonDecode_impl(T, R)(ref R input) if(isInputRange!R && isSomeChar!(ElementType!R) && is(T == JsonNull)) {
+JsonNull jsonDecode_impl(T, R)(ref R input) if(isInputCharRange!R && is(T == JsonNull)) {
     enforceEx!JsonException(!input.empty, "premature end of input");
     enforceChar(input, 'n', false);
     enforceChar(input, 'u', false);
