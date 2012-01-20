@@ -157,7 +157,7 @@ void jsonEncode_impl(S, A)(S obj, ref A app) if((is(S == struct) || is(S == clas
 
         /* obj.tupleof[i].stringof is something like "obj.member".
          * We just want "member" */
-        auto key = obj.tupleof[i].stringof.find('.')[1..$];
+        auto key = obj.tupleof[i].stringof[4..$];
 
         jsonEncode_impl(key, app);
         app.put(':');
@@ -278,7 +278,7 @@ T jsonDecode_impl(T, R)(ref R input)
             foreach(i, oval; obj.tupleof) {
                 /* obj.tupleof[i].stringof is something like "obj.member".
                  * We just want "member" */
-                if(key == obj.tupleof[i].stringof.find('.')[1..$]) {
+                if(key == obj.tupleof[i].stringof[4..$]) {
                     /* Assigning to oval doesn't seem to work, but obj.tupleof[i] does */
                     obj.tupleof[i] = jsonDecode_impl!(typeof(obj.tupleof[i]))(input);
                     didRead = true;
