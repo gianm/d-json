@@ -206,17 +206,18 @@ Variant jsonDecode_impl(T : Variant, R)(ref R input) if(isInputCharRange!R) {
 
     enforceEx!JsonException(!input.empty, "premature end of input");
 
-    if(input.front == '"') {
+    dchar c = input.front;
+    if(c == '"') {
         v = jsonDecode_impl!string(input);
-    } else if(input.front == '[') {
+    } else if(c == '[') {
         v = jsonDecode_impl!(Variant[])(input);
-    } else if(input.front == '{') {
+    } else if(c == '{') {
         v = jsonDecode_impl!(Variant[string])(input);
-    } else if(input.front == '-' || (input.front >= '0' && input.front <= '9')) {
+    } else if(c == '-' || (c >= '0' && c <= '9')) {
         v = jsonDecode_impl!real(input);
-    } else if(input.front == 't' || input.front == 'f') {
+    } else if(c == 't' || c == 'f') {
         v = jsonDecode_impl!bool(input);
-    } else if(input.front == 'n') {
+    } else if(c == 'n') {
         v = jsonDecode_impl!JsonNull(input);
     } else {
         throw new JsonException("can't decode into variant");
@@ -355,7 +356,8 @@ T jsonDecode_impl(T, R)(ref R input) if(isInputCharRange!R && isSomeString!T) {
     enforceChar(input, '"', false);
 
     while(!input.empty) {
-        if(input.front == '"') {
+        dchar c = input.front;
+        if(c == '"') {
             /* End of string */
             input.popFront;
 
@@ -365,7 +367,7 @@ T jsonDecode_impl(T, R)(ref R input) if(isInputCharRange!R && isSomeString!T) {
             }
 
             return app.data;
-        } else if(input.front == '\\') {
+        } else if(c == '\\') {
             /* Escape sequence */
 
             static if(canReuseInput) {
@@ -379,11 +381,12 @@ T jsonDecode_impl(T, R)(ref R input) if(isInputCharRange!R && isSomeString!T) {
             /* Advance to escaped character */
             input.popFront;
             enforceEx!JsonException(!input.empty, "premature end of input");
+            c = input.front;
 
-            switch(input.front) {
+            switch(c) {
                 case '"':
                 case '\\':
-                case '/': app.put(input.front); input.popFront; break;
+                case '/': app.put(c); input.popFront; break;
                 case 'b': app.put('\b'); input.popFront; break;
                 case 'f': app.put('\f'); input.popFront; break;
                 case 'n': app.put('\n'); input.popFront; break;
@@ -445,15 +448,15 @@ T jsonDecode_impl(T, R)(ref R input) if(isInputCharRange!R && isSomeString!T) {
                 default:
                     throw new JsonException("encountered bogus escape sequence");
             }
-        } else if(isControl(input.front)) {
+        } else if(isControl(c)) {
             /* Error - JSON strings cannot include raw control characters */
             throw new JsonException("encountered raw control character");
         } else {
             /* Regular character */
             static if(canReuseInput) {
-                if(!inputSave) app.put(input.front);
+                if(!inputSave) app.put(c);
             } else {
-                app.put(input.front);
+                app.put(c);
             }
             input.popFront;
         }
@@ -474,13 +477,15 @@ T jsonDecode_impl(T, R)(ref R input)
 /* Decode JSON bool -> D bool */
 bool jsonDecode_impl(T, R)(ref R input) if(isInputCharRange!R && is(T == bool)) {
     enforceEx!JsonException(!input.empty, "premature end of input");
-    if(input.front == 't') {
+
+    dchar c = input.front;
+    if(c == 't') {
         input.popFront;
         enforceChar(input, 'r', false);
         enforceChar(input, 'u', false);
         enforceChar(input, 'e', false);
         return true;
-    } else if(input.front == 'f') {
+    } else if(c == 'f') {
         input.popFront;
         enforceChar(input, 'a', false);
         enforceChar(input, 'l', false);
