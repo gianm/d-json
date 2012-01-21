@@ -44,6 +44,18 @@ T jsonDecode(T = Variant, R)(R input) if(isInputCharRange!R) {
 
 private:
 
+template aaKeyType(A) if(isAssociativeArray!A) {
+    static if(is(typeof({A a; return a.keys.front;}()) K)) {
+        alias K aaKeyType;
+    } else static assert(0);
+}
+
+unittest {
+    static assert(is(aaKeyType!(int[string]) == string));
+    static assert(is(aaKeyType!(int[dstring]) == dstring));
+    static assert(is(aaKeyType!(int[float]) == float));
+}
+
 template isInputCharRange(R) {
     enum isInputCharRange = isInputRange!R && isSomeChar!(ElementType!R);
 }
@@ -229,7 +241,7 @@ Variant jsonDecode_impl(T : Variant, R)(ref R input) if(isInputCharRange!R) {
 /* Decode JSON object -> D associative array, class, or struct */
 T jsonDecode_impl(T, R)(ref R input)
   if(isInputCharRange!R
-    && (is(T == struct) || is(T == class) || isAssociativeArray!T)
+    && (is(T == struct) || is(T == class) || (isAssociativeArray!T && isSomeString!(aaKeyType!T)))
     && !is(T : JsonNull))
 {
     auto first = true;
@@ -262,7 +274,13 @@ T jsonDecode_impl(T, R)(ref R input)
         }
 
         /* Read key */
-        auto key = jsonDecode_impl!string(input);
+        static if(isAssociativeArray!T) {
+            /* Decode into the correct key type for T */
+            auto key = jsonDecode_impl!(aaKeyType!T)(input);
+        } else {
+            auto key = jsonDecode_impl!string(input);
+        }
+
         skipWhite(input);
 
         /* Read colon */
@@ -552,6 +570,15 @@ unittest {
     assert(jsonEncode!dstring(jsonDecode!string(wideLoad)) == "\"\U0001D11E \U0001D11E\"");
     assert(jsonEncode!string(jsonDecode!dstring(wideLoad)) == "\"\U0001D11E \U0001D11E\"");
     assert(jsonEncode!dstring(jsonDecode!dstring(wideLoad)) == "\"\U0001D11E \U0001D11E\"");
+
+    /* Decode associative array indexed by dstring */
+    narrowStr = "{" ~ narrowStr ~ ": 3}";
+    wideLoad  = "{" ~ wideLoad  ~ ": 3}";
+
+    auto dstringAA1 = jsonDecode!(int[dstring])(narrowStr);
+    auto dstringAA2 = jsonDecode!(int[dstring])(wideLoad);
+    assert(dstringAA1["\U0001D11E \U0001D11E"] == 3);
+    assert(dstringAA2["\U0001D11E \U0001D11E"] == 3);
 
     /* Structured decode into user-defined type */
     auto x = jsonDecode!X(`null`);
