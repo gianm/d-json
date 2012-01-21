@@ -554,6 +554,7 @@ unittest {
     assert(jsonDecode(`""`) == "");
     assert(jsonDecode(`"\u0391 \u0392\u0393\t\u03B3\u03b4"`) == "\u0391 \u0392\u0393\t\u03B3\u03B4");
     assert(jsonDecode(`"\uD834\uDD1E"`) == "\U0001D11E");
+    assert(jsonDecode("\"\U0001D11E and \u0392\"") == "\U0001D11E and \u0392");
 
     /* String encodes */
     assert(jsonEncode("he\u03B3l\"lo") == "\"he\u03B3l\\\"lo\"");
