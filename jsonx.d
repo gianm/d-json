@@ -1,8 +1,7 @@
 module jsonx;
 
 import std.algorithm : find;
-import std.ascii : isControl, isUpper, isDigit, isHexDigit;
-import std.uni : isWhite;
+import std.ascii : isControl, isUpper, isDigit, isHexDigit, isWhite;
 import std.conv;
 import std.range;
 import std.traits;
@@ -60,17 +59,39 @@ template isInputCharRange(R) {
     enum isInputCharRange = isInputRange!R && isSomeChar!(ElementType!R);
 }
 
-void enforceChar(R)(ref R input, dchar c, bool sw) if (isInputCharRange!R) {
+void enforceChar(R)(ref R input, char c, bool sw) if (isInputCharRange!R) {
     enforceEx!JsonException(!input.empty, "premature end of input");
-    enforceEx!JsonException(input.front == c, "expected " ~ to!string(c) ~ ", saw " ~ to!string(input.front));
-    input.popFront;
+
+    static if(isSomeString!R) {
+        /* Don't bother decoding UTF */
+        auto nextChar = input[0];
+    } else {
+        auto nextChar = input.front;
+    }
+
+    enforceEx!JsonException(nextChar == c, "expected " ~ to!string(c) ~ ", saw " ~ to!string(nextChar));
+
+    static if(isSomeString!R) {
+        /* Don't bother decoding UTF */
+        input = input[1..$];
+    } else {
+        input.popFront;
+    }
+
     if(sw)
         skipWhite(input);
 }
 
 void skipWhite(R)(ref R input) if (isInputCharRange!R) {
-    while(!input.empty && isWhite(input.front))
-        input.popFront;
+    static if(isSomeString!R) {
+        /* Don't bother decoding UTF */
+        while(!input.empty && std.ascii.isWhite(input[0])) {
+            input = input[1..$];
+        }
+    } else {
+        while(!input.empty && std.ascii.isWhite(input.front))
+            input.popFront;
+    }
 }
 
 /* Encode variant. Not able to encode all variants, but should be able to round-trip
