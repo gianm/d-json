@@ -1,5 +1,6 @@
 import jsonx;
 import std.datetime;
+import std.json;
 import std.range;
 import std.stdio;
 
@@ -24,7 +25,6 @@ void main() {
         "foo" : "Baz",
         "reals" : [ 3.4, 7.2e+4, 5, 0, -33 ],
         "ints" : { "one": 1, "two": 2 },
-        "bogus" : "ignore me",
         "conf" : {
             "encoding" : "UTF-8",
             "indent" : 4,
@@ -37,7 +37,6 @@ void main() {
         "foo" : "Baz",
         "reals" : [ 3.4, 7.2e+4, 5, 0, -33 ],
         "ints" : { "one": 1, "two": 2 },
-        "bogus" : "ignore me",
         "conf" : {
             "encoding" : "UTF-8",
             "indent" : 4,
@@ -52,24 +51,36 @@ void main() {
     string xstringarray = `["abcdefghijklmnopqrstuvwxyz"]`;
     dstring dxstringarray = `["abcdefghijklmnopqrstuvwxyz"]`;
 
-    writeln("Decode string into struct -> ", bench({jsonDecode!X(xjson);}, 500000));
-    writeln("Decode string into variant -> ", bench({jsonDecode(xjson);}, 500000));
+    writeln("Decode string into struct -> ", bench({jsonDecode!X(xjson);}, 50000));
+    writeln("Decode string into variant -> ", bench({jsonDecode(xjson);}, 50000));
+    writeln("Decode string with std.json -> ", bench({parseJSON(xjson);}, 50000));
 
-    writeln("Decode dstring into struct -> ", bench({jsonDecode!X(dxjson);}, 500000));
-    writeln("Decode dstring into variant -> ", bench({jsonDecode(dxjson);}, 500000));
-
-    writeln("Decode string into string -> ", bench({jsonDecode!string(xstring);}, 5000000));
-    writeln("Decode dstring into dstring -> ", bench({jsonDecode!dstring(dxstring);}, 5000000));
-    writeln("Decode dstring into string -> ", bench({jsonDecode!string(dxstring);}, 5000000));
-    writeln("Decode string into dstring -> ", bench({jsonDecode!dstring(xstring);}, 5000000));
-
-    writeln("Decode string into string[] -> ", bench({jsonDecode!(string[])(xstringarray);}, 5000000));
-    writeln("Decode dstring into dstring[] -> ", bench({jsonDecode!(dstring[])(dxstringarray);}, 5000000));
+    writeln("Decode dstring into struct -> ", bench({jsonDecode!X(dxjson);}, 50000));
+    writeln("Decode dstring into variant -> ", bench({jsonDecode(dxjson);}, 50000));
 
     auto x = jsonDecode!X(xjson);
+    auto v = jsonDecode(xjson);
+    auto j = parseJSON(xjson);
 
-    writeln("Encode struct into string -> ", bench({jsonEncode!string(x);}, 500000));
-    writeln("Encode struct into dstring -> ", bench({jsonEncode!dstring(x);}, 500000));
+    writeln("Encode struct into string -> ", bench({jsonEncode!string(x);}, 50000));
+    writeln("Encode struct into dstring -> ", bench({jsonEncode!dstring(x);}, 50000));
+
+    writeln("Encode variant into string -> ", bench({jsonEncode!string(v);}, 50000));
+    writeln("Encode variant into dstring -> ", bench({jsonEncode!dstring(v);}, 50000));
+    writeln("Encode with std.json -> ", bench({toJSON(&j);}, 50000));
+
+    writeln("Decode string into string -> ", bench({jsonDecode!string(xstring);}, 500000));
+    writeln("Decode dstring into dstring -> ", bench({jsonDecode!dstring(dxstring);}, 500000));
+    writeln("Decode dstring into string -> ", bench({jsonDecode!string(dxstring);}, 500000));
+    writeln("Decode string into dstring -> ", bench({jsonDecode!dstring(xstring);}, 500000));
+
+    writeln("Decode string into string[] -> ", bench({jsonDecode!(string[])(xstringarray);}, 500000));
+    writeln("Decode dstring into dstring[] -> ", bench({jsonDecode!(dstring[])(dxstringarray);}, 500000));
+
+    writeln("Encode string into string -> ", bench({jsonEncode!string(xstring);}, 500000));
+    writeln("Encode dstring into dstring -> ", bench({jsonEncode!dstring(dxstring);}, 500000));
+    writeln("Encode dstring into string -> ", bench({jsonEncode!string(dxstring);}, 500000));
+    writeln("Encode string into dstring -> ", bench({jsonEncode!dstring(xstring);}, 500000));
 }
 
 double bench(void delegate() dg, long n) {
