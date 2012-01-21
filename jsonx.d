@@ -109,7 +109,7 @@ void jsonEncode_impl(T, A)(T str, ref A app) if(isSomeString!T) {
             app.put(`\r`);
         } else if(c == '\t') {
             app.put(`\t`);
-        } else if(c == '"' || c == '\\') {
+        } else if(c == '"' || c == '\\' || c == '/') {
             app.put('\\');
             app.put(c);
         } else if(isControl(c)) {
@@ -682,4 +682,39 @@ unittest {
             assert(caught);
         }
     }
+
+    /* Tests from std.json */
+    auto jsons = [
+        `null`,
+        `true`,
+        `false`,
+        `0`,
+        `123`,
+        `-4321`,
+        `0.23`,
+        `-0.23`,
+        `""`,
+        `1.223e+24`,
+        `"hello\nworld"`,
+        `"\"\\\/\b\f\n\r\t"`,
+        `[]`,
+        `[12,"foo",true,false]`,
+        `{}`,
+        `{"a":1,"b":null}`,
+        `{"goodbye":[true,"or",false,["test",42,{"nested":{"a":23.54,"b":0.0012}}]],"hello":{"array":[12,null,{}],"json":"is great"}}`
+    ];
+
+    foreach(json; jsons) {
+        auto v = jsonDecode(json);
+        auto rt = jsonEncode(v);
+        assert(rt == json, "roundtrip -> " ~ json);
+    }
+
+    /* More tests from std.json */
+    auto v = jsonDecode(`"\u003C\u003E"`);
+    assert(jsonEncode(v) == "\"\&lt;\&gt;\"");
+    v = jsonDecode(`"\u0391\u0392\u0393"`);
+    assert(jsonEncode(v) == "\"\&Alpha;\&Beta;\&Gamma;\"");
+    v = jsonDecode(`"\u2660\u2666"`);
+    assert(jsonEncode(v) == "\"\&spades;\&diams;\"");
 }
