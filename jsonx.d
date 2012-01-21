@@ -384,7 +384,7 @@ T jsonDecode_impl(T, R)(ref R input) if(isInputCharRange!R && isNumeric!T) {
 T jsonDecode_impl(T, R)(ref R input) if(isInputCharRange!R && isSomeString!T) {
     auto app = Appender!T();
 
-    /* For strings we can attempt to decode without copying */
+    /* For strings we can attempt to scan without copying or decoding UTF */
     enum canReuseInput = is(T == R);
     static if(canReuseInput) {
         /* If inputSave is set, it means we don't yet need to copy */
@@ -395,7 +395,12 @@ T jsonDecode_impl(T, R)(ref R input) if(isInputCharRange!R && isSomeString!T) {
     enforceChar(input, '"', false);
 
     while(!input.empty) {
-        dchar c = input.front;
+        static if(canReuseInput) {
+            Unqual!(typeof(input[0])) c = input[0];
+        } else {
+            dchar c = input.front;
+        }
+
         if(c == '"') {
             /* End of string */
             input.popFront;
@@ -420,7 +425,11 @@ T jsonDecode_impl(T, R)(ref R input) if(isInputCharRange!R && isSomeString!T) {
             /* Advance to escaped character */
             input.popFront;
             enforceEx!JsonException(!input.empty, "premature end of input");
-            c = input.front;
+            static if(canReuseInput) {
+                c = input[0];
+            } else {
+                c = input.front;
+            }
 
             switch(c) {
                 case '"':
@@ -494,10 +503,11 @@ T jsonDecode_impl(T, R)(ref R input) if(isInputCharRange!R && isSomeString!T) {
             /* Regular character */
             static if(canReuseInput) {
                 if(!inputSave) app.put(c);
+                input = input[1..$];
             } else {
                 app.put(c);
+                input.popFront;
             }
-            input.popFront;
         }
     }
 
