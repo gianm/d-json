@@ -1,8 +1,8 @@
-Decoding JSON
-=============
+d-json
+======
 
-To User-Defined Type
---------------------
+Decode JSON to User-Defined Type
+--------------------------------
 
 If called with a particular type, `jsonDecode!T(json)` takes an input range
 `json` and gives you an instance of the type `T`. It will throw a `JsonException`
@@ -36,8 +36,8 @@ void main() {
 
 Builtin types like `int[]` and `string[string]` work as well.
 
-To Variant
-----------
+Decode JSON to Variant
+----------------------
 
 If called without template arguments, `jsonDecode` gives you a generic `JsonValue`
 (currently implemented with a [Variant](http://d-programming-language.org/phobos/std_variant.html)).
@@ -75,8 +75,8 @@ void main() {
 }
 ```
 
-Encoding JSON
-=============
+Encoding to JSON
+----------------
 
 `jsonEncode(v)` takes either a JsonValue from jsonDecode or a regular type
 and gives you a `string`. Here's an example with a simple array:
