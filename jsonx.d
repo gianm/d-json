@@ -20,6 +20,9 @@ import std.stdio;
 
 public:
 
+/* JsonValue is currently implemented as a Variant */
+alias Variant JsonValue;
+
 struct JsonNull { /* empty type... */ }
 
 /* Encode to a string in memory */
@@ -35,7 +38,7 @@ R jsonEncode(R, T)(T obj, R range) if(isOutputRange!(R, dchar)) {
     return range;
 }
 
-T jsonDecode(T = Variant, R)(R input) if(isInputCharRange!R) {
+T jsonDecode(T = JsonValue, R)(R input) if(isInputCharRange!R) {
     auto val = jsonDecode_impl!T(input);
     enforceEx!JsonException(input.empty, "garbage at end of stream");
     return val;
@@ -94,15 +97,15 @@ void skipWhite(R)(ref R input) if (isInputCharRange!R) {
     }
 }
 
-/* Encode variant. Not able to encode all variants, but should be able to round-trip
+/* Encode JsonValue. Not able to encode all variants, but should be able to round-trip
  * variants created from jsonDecode. */
-void jsonEncode_impl(T : Variant, A)(T v, ref A app) {
+void jsonEncode_impl(T : JsonValue, A)(T v, ref A app) {
     if(v.type() == typeid(string)) {
         jsonEncode_impl(v.get!string, app);
-    } else if(v.type() == typeid(Variant[])) {
-        jsonEncode_impl(v.get!(Variant[]), app);
-    } else if(v.type() == typeid(Variant[string])) {
-        jsonEncode_impl(v.get!(Variant[string]), app);
+    } else if(v.type() == typeid(JsonValue[])) {
+        jsonEncode_impl(v.get!(JsonValue[]), app);
+    } else if(v.type() == typeid(JsonValue[string])) {
+        jsonEncode_impl(v.get!(JsonValue[string]), app);
     } else if(v.type() == typeid(real)) {
         jsonEncode_impl(v.get!real, app);
     } else if(v.type() == typeid(bool)) {
@@ -110,7 +113,7 @@ void jsonEncode_impl(T : Variant, A)(T v, ref A app) {
     } else if(v.type() == typeid(JsonNull)) {
         jsonEncode_impl(v.get!JsonNull, app);
     } else {
-        throw new JsonException("can't encode variant with type " ~ to!string(v.type()));
+        throw new JsonException("Can't encode Variant with type " ~ to!string(v.type()));
     }
 }
 
@@ -233,9 +236,9 @@ void jsonEncode_impl(S : T[K], T, K, A)(S arr, ref A app) if(isSomeString!K) {
     app.put('}');
 }
 
-/* Decode anything -> Variant */
-Variant jsonDecode_impl(T : Variant, R)(ref R input) if(isInputCharRange!R) {
-    Variant v;
+/* Decode anything -> JsonValue */
+Variant jsonDecode_impl(T : JsonValue, R)(ref R input) if(isInputCharRange!R) {
+    JsonValue v;
 
     enforceEx!JsonException(!input.empty, "premature end of input");
 
@@ -243,9 +246,9 @@ Variant jsonDecode_impl(T : Variant, R)(ref R input) if(isInputCharRange!R) {
     if(c == '"') {
         v = jsonDecode_impl!string(input);
     } else if(c == '[') {
-        v = jsonDecode_impl!(Variant[])(input);
+        v = jsonDecode_impl!(JsonValue[])(input);
     } else if(c == '{') {
-        v = jsonDecode_impl!(Variant[string])(input);
+        v = jsonDecode_impl!(JsonValue[string])(input);
     } else if(c == '-' || (c >= '0' && c <= '9')) {
         v = jsonDecode_impl!real(input);
     } else if(c == 't' || c == 'f') {
@@ -253,7 +256,7 @@ Variant jsonDecode_impl(T : Variant, R)(ref R input) if(isInputCharRange!R) {
     } else if(c == 'n') {
         v = jsonDecode_impl!JsonNull(input);
     } else {
-        throw new JsonException("can't decode into variant");
+        throw new JsonException("Can't decode into JsonValue");
     }
 
     return v;
@@ -328,7 +331,7 @@ T jsonDecode_impl(T, R)(ref R input)
 
             if(!didRead) {
                 /* eek. Read the value and toss it */
-                jsonDecode_impl!Variant(input);
+                jsonDecode_impl!JsonValue(input);
             }
         }
 
@@ -649,7 +652,7 @@ unittest {
     assert(jsonEncode(x) ==
         `{"reals":[3.4,72000,5,0,-33],"ints":{"one":1,"two":2},"conf":{"encoding":"UTF-8","plugins":["perl","d"],"indent":4,"indentSpaces":true},"foo":"Baz"}`);
 
-    /* Structured decode into variant */
+    /* Structured decode into JsonValue */
     auto xv = jsonDecode(`null`);
     assert(xv.type() == typeid(JsonNull));
 
@@ -669,7 +672,7 @@ unittest {
     assert(xv["conf"]["indent"] == 4);
     assert(xv["conf"]["indentSpaces"] == true);
 
-    /* Encode variant back to JSON */
+    /* Encode JsonValue back to JSON */
     assert(jsonEncode(xv) ==
         `{"bogus":"ignore me","conf":{"encoding":"UTF-8","indent":4,"indentSpaces":true,"plugins":["perl","d"]},"foo":"Baz","ints":{"one":1,"two":2},"reals":[3.4,72000,5,0,-33]}`);
 
