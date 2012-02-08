@@ -62,25 +62,31 @@ template isInputCharRange(R) {
     enum isInputCharRange = isInputRange!R && isSomeChar!(ElementType!R);
 }
 
-void enforceChar(R)(ref R input, char c, bool sw) if (isInputCharRange!R) {
+auto nextChar(R)(ref R input) pure {
     enforceEx!JsonException(!input.empty, "premature end of input");
 
     static if(isSomeString!R) {
         /* Don't bother decoding UTF */
-        auto nextChar = input[0];
+        return input[0];
     } else {
-        auto nextChar = input.front;
+        return input.front;
     }
+}
 
-    enforceEx!JsonException(nextChar == c, "expected " ~ to!string(c) ~ ", saw " ~ to!string(nextChar));
-
+void skipChar(R)(ref R input) {
     static if(isSomeString!R) {
         /* Don't bother decoding UTF */
         input = input[1..$];
     } else {
         input.popFront;
     }
+}
 
+void enforceChar(R)(ref R input, char c, bool sw) if (isInputCharRange!R) {
+    auto nextChar = nextChar(input);
+    enforceEx!JsonException(nextChar == c, "expected " ~ to!string(c) ~ ", saw " ~ to!string(nextChar));
+
+    skipChar(input);
     if(sw)
         skipWhite(input);
 }
@@ -92,8 +98,9 @@ void skipWhite(R)(ref R input) if (isInputCharRange!R) {
             input = input[1..$];
         }
     } else {
-        while(!input.empty && std.ascii.isWhite(input.front))
+        while(!input.empty && std.ascii.isWhite(input.front)) {
             input.popFront;
+        }
     }
 }
 
@@ -219,7 +226,7 @@ void jsonEncode_impl(S : T[], T, A)(S arr, ref A app) if(!isSomeString!S) {
 }
 
 /* Encode associative array */
-void jsonEncode_impl(S : T[K], T, K, A)(S arr, ref A app) if(isSomeString!K) {
+void jsonEncode_impl(S : T[K], T, K, A)(S arr, ref A app) {
     app.put('{');
     bool first = true;
 
@@ -227,7 +234,16 @@ void jsonEncode_impl(S : T[K], T, K, A)(S arr, ref A app) if(isSomeString!K) {
     foreach(key; arr.keys.sort) {
         if(!first)
             app.put(',');
-        jsonEncode_impl(key, app);
+
+        static if(isSomeString!K) {
+            /* Encoding a string key, we can do it directly */
+            jsonEncode_impl(key, app);
+        } else {
+            /* Encoding a non-string key. Since JSON keys must be strings,
+             * we must coerce the key to a string before encoding. */
+            jsonEncode_impl(to!string(key), app);
+        }
+
         app.put(':');
         jsonEncode_impl(arr[key], app);
         first = false;
@@ -265,7 +281,7 @@ Variant jsonDecode_impl(T : JsonValue, R)(ref R input) if(isInputCharRange!R) {
 /* Decode JSON object -> D associative array, class, or struct */
 T jsonDecode_impl(T, R)(ref R input)
   if(isInputCharRange!R
-    && (is(T == struct) || is(T == class) || (isAssociativeArray!T && isSomeString!(aaKeyType!T)))
+    && (is(T == struct) || is(T == class) || (isAssociativeArray!T))
     && !is(T : JsonNull))
 {
     auto first = true;
@@ -376,9 +392,20 @@ T[] jsonDecode_impl(A : T[], T, R)(ref R input) if(isInputCharRange!R && !isSome
 
 /* Decode JSON number -> D number */
 T jsonDecode_impl(T, R)(ref R input) if(isInputCharRange!R && isNumeric!T) {
+    /* Attempt decoding of JSON strings into D numbers
+     * by ignoring surrounding quote marks if present */
+    auto first = nextChar(input);
+    if(first == '"') skipChar(input);
+
     try {
-        return parse!T(input);
+        auto number = parse!T(input);
+
+        /* If we started with a quote mark, we need to end with one */
+        if(first == '"') enforceChar(input, '"', false);
+
+        return number;
     } catch(ConvException e) {
+        /* Convert ConvException into JsonException */
         throw new JsonException("ConvException: " ~ e.msg);
     }
 }
@@ -614,6 +641,16 @@ unittest {
     auto dstringAA2 = jsonDecode!(int[dstring])(wideLoad);
     assert(dstringAA1["\U0001D11E \U0001D11E"] == 3);
     assert(dstringAA2["\U0001D11E \U0001D11E"] == 3);
+
+    /* Decode JSON strings into D numbers */
+    assert(jsonDecode!int(`"34"`) == 34);
+
+    /* Deep associative array encode/decode */
+    int[string][uint][string] daa;
+    daa["foo"][2]["baz"] = 4;
+    auto daaStr = jsonEncode(daa);
+    assert(daaStr == `{"foo":{"2":{"baz":4}}}`);
+    assert(jsonDecode!(int[string][uint][string])(daaStr)["foo"][2]["baz"] == 4);
 
     /* Structured decode into user-defined type */
     auto x = jsonDecode!X(`null`);
