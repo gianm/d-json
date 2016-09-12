@@ -56,7 +56,7 @@ R jsonEncode(R, T)(T obj, R range) if(isOutputRange!(R, dchar)) {
 
 T jsonDecode(T = JsonValue, R)(R input) if(isInputCharRange!R) {
     auto val = jsonDecode_impl!T(input);
-    enforceEx!JsonException(input.empty, "garbage at end of stream");
+    if(!input.empty) throw new JsonException("Garbage at end of stream.");
     return val;
 }
 
@@ -79,7 +79,7 @@ template isInputCharRange(R) {
 }
 
 auto nextChar(R)(ref R input) pure {
-    enforceEx!JsonException(!input.empty, "premature end of input");
+    if(input.empty) throw new JsonException("Premature end of input");
 
     static if(isSomeString!R) {
         /* Don't bother decoding UTF */
@@ -100,7 +100,9 @@ void skipChar(R)(ref R input) {
 
 void enforceChar(R)(ref R input, char c, bool sw) if (isInputCharRange!R) {
     auto nextChar = nextChar(input);
-    enforceEx!JsonException(nextChar == c, "expected " ~ to!string(c) ~ ", saw " ~ to!string(nextChar));
+    if(nextChar != c) throw new JsonException(
+        "Expected " ~ to!string(c) ~ ", saw " ~ to!string(nextChar)
+    );
 
     skipChar(input);
     if(sw)
@@ -110,11 +112,11 @@ void enforceChar(R)(ref R input, char c, bool sw) if (isInputCharRange!R) {
 void skipWhite(R)(ref R input) if (isInputCharRange!R) {
     static if(isSomeString!R) {
         /* Don't bother decoding UTF */
-        while(!input.empty && std.ascii.isWhite(input[0])) {
+        while(!input.empty && isWhite(input[0])) {
             input = input[1..$];
         }
     } else {
-        while(!input.empty && std.ascii.isWhite(input.front)) {
+        while(!input.empty && isWhite(input.front)) {
             input.popFront;
         }
     }
@@ -177,12 +179,12 @@ void jsonEncode_impl(T, A)(T str, ref A app) if(isSomeString!T) {
 }
 
 /* Encode character */
-void jsonEncode_impl(T, A)(T val, ref A app) if(isSomeChar!T) {
+void jsonEncode_impl(T, A)(T val, ref A app) if(!is(T == enum) && isSomeChar!T) {
     jsonEncode_impl(to!string(val), app);
 }
 
 /* Encode number, bool */
-void jsonEncode_impl(T, A)(T val, ref A app) if(isNumeric!T || is(T == bool)) {
+void jsonEncode_impl(T, A)(T val, ref A app) if(!is(T == enum) && (isNumeric!T || is(T == bool))) {
     app.put(to!string(val));
 }
 
@@ -272,7 +274,7 @@ void jsonEncode_impl(S : T[K], T, K, A)(S arr, ref A app) {
 Variant jsonDecode_impl(T : JsonValue, R)(ref R input) if(isInputCharRange!R) {
     JsonValue v;
 
-    enforceEx!JsonException(!input.empty, "premature end of input");
+    if(input.empty) throw new JsonException("Premature end of input.");
 
     dchar c = input.front;
     if(c == '"') {
@@ -407,7 +409,7 @@ T[] jsonDecode_impl(A : T[], T, R)(ref R input) if(isInputCharRange!R && !isSome
 }
 
 /* Decode JSON number -> D number */
-T jsonDecode_impl(T, R)(ref R input) if(isInputCharRange!R && isNumeric!T) {
+T jsonDecode_impl(T, R)(ref R input) if(isInputCharRange!R && isNumeric!T && !is(T == enum)) {
     /* Attempt decoding of JSON strings into D numbers
      * by ignoring surrounding quote marks if present */
     auto first = nextChar(input);
@@ -470,7 +472,7 @@ T jsonDecode_impl(T, R)(ref R input) if(isInputCharRange!R && isSomeString!T) {
 
             /* Advance to escaped character */
             input.popFront;
-            enforceEx!JsonException(!input.empty, "premature end of input");
+            if(input.empty) throw new JsonException("Premature end of input.");
             static if(canReuseInput) {
                 c = input[0];
             } else {
@@ -495,11 +497,15 @@ T jsonDecode_impl(T, R)(ref R input) if(isInputCharRange!R && isSomeString!T) {
                         wchar unit = 0;
 
                         foreach(i; retro(iota(4))) {
-                            enforceEx!JsonException(!input.empty, "encountered eof inside unicode escape");
+                            if(input.empty) throw new JsonException(
+                                "Encountered EOF inside unicode escape."
+                            );
 
                             /* Read hex digit */
                             dchar hex = input.front;
-                            enforceEx!JsonException(isHexDigit(hex), "encountered non-hex digit inside unicode escape");
+                            if(!hex.isHexDigit) throw new JsonException(
+                                "Encountered non-hex digit inside unicode escape."
+                            );
 
                             /* Convert to number */
                             auto val = isDigit(hex) ? hex - '0'
@@ -558,7 +564,7 @@ T jsonDecode_impl(T, R)(ref R input) if(isInputCharRange!R && isSomeString!T) {
     }
 
     /* Premature end of input */
-    throw new JsonException("premature end of input");
+    throw new JsonException("Premature end of input.");
     assert(0);
 }
 
@@ -571,7 +577,7 @@ T jsonDecode_impl(T, R)(ref R input)
 
 /* Decode JSON bool -> D bool */
 bool jsonDecode_impl(T, R)(ref R input) if(isInputCharRange!R && is(T == bool)) {
-    enforceEx!JsonException(!input.empty, "premature end of input");
+    if(input.empty) throw new JsonException("Premature end of input.");
 
     dchar c = input.front;
     if(c == 't') {
@@ -594,7 +600,7 @@ bool jsonDecode_impl(T, R)(ref R input) if(isInputCharRange!R && is(T == bool)) 
 
 /* Decode JSON null -> D null */
 JsonNull jsonDecode_impl(T, R)(ref R input) if(isInputCharRange!R && is(T == JsonNull)) {
-    enforceEx!JsonException(!input.empty, "premature end of input");
+    if(input.empty) throw new JsonException("Premature end of input.");
     enforceChar(input, 'n', false);
     enforceChar(input, 'u', false);
     enforceChar(input, 'l', false);
@@ -603,40 +609,24 @@ JsonNull jsonDecode_impl(T, R)(ref R input) if(isInputCharRange!R && is(T == Jso
 }
 
 class JsonException : Exception {
-    this(string s) {
+    this(string s) @safe pure nothrow{
         super(s);
     }
 }
 
-unittest {
-    static struct MyConfig {
-        string encoding;
-        string[] plugins;
-        int indent = 2;
-        bool indentSpaces;
-    }
-
-    static class X {
-        enum foos { Bar, Baz };
-
-        real[] reals;
-        int[string] ints;
-        MyConfig conf;
-        foos foo;
-
-        void qux() { }
-    }
-
+unittest{
     /* String decodes */
     assert(jsonDecode(`""`) == "");
     assert(jsonDecode(`"\u0391 \u0392\u0393\t\u03B3\u03b4"`) == "\u0391 \u0392\u0393\t\u03B3\u03B4");
     assert(jsonDecode(`"\uD834\uDD1E"`) == "\U0001D11E");
     assert(jsonDecode("\"\U0001D11E and \u0392\"") == "\U0001D11E and \u0392");
-
+}
+unittest{
     /* String encodes */
     assert(jsonEncode("he\u03B3l\"lo") == "\"he\u03B3l\\\"lo\"");
     assert(jsonEncode("\U0001D11E and \u0392") == "\"\U0001D11E and \u0392\"");
-
+}
+unittest{
     /* Mix string/dstring encode and decode */
     string narrowStr = "\"\\uD834\\uDD1E \U0001D11E\"";
     dstring wideLoad = "\"\\uD834\\uDD1E \U0001D11E\"";
@@ -648,36 +638,42 @@ unittest {
     assert(jsonEncode!dstring(jsonDecode!string(wideLoad)) == "\"\U0001D11E \U0001D11E\"");
     assert(jsonEncode!string(jsonDecode!dstring(wideLoad)) == "\"\U0001D11E \U0001D11E\"");
     assert(jsonEncode!dstring(jsonDecode!dstring(wideLoad)) == "\"\U0001D11E \U0001D11E\"");
-
     /* Decode associative array indexed by dstring */
     narrowStr = "{" ~ narrowStr ~ ": 3}";
     wideLoad  = "{" ~ wideLoad  ~ ": 3}";
-
     auto dstringAA1 = jsonDecode!(int[dstring])(narrowStr);
     auto dstringAA2 = jsonDecode!(int[dstring])(wideLoad);
     assert(dstringAA1["\U0001D11E \U0001D11E"] == 3);
     assert(dstringAA2["\U0001D11E \U0001D11E"] == 3);
-
+}
+unittest{
     /* Decode JSON strings into D numbers */
     assert(jsonDecode!int(`"34"`) == 34);
-
+}
+unittest{
     /* Deep associative array encode/decode */
     int[string][uint][string] daa;
     daa["foo"][2]["baz"] = 4;
     auto daaStr = jsonEncode(daa);
     assert(daaStr == `{"foo":{"2":{"baz":4}}}`);
     assert(jsonDecode!(int[string][uint][string])(daaStr)["foo"][2]["baz"] == 4);
-
-    /* Structured decode into user-defined type */
-    auto x = jsonDecode!X(`null`);
-    assert(x is null);
-
-    x = jsonDecode!X(`{}`);
-    assert(x !is null);
-    assert(x.conf.indent == 2);
-    assert(x.foo == X.foos.Bar);
-
-    auto xjson = `{
+}
+version(unittest){
+    private static struct MyConfig {
+        string encoding;
+        string[] plugins;
+        int indent = 2;
+        bool indentSpaces;
+    }
+    private static class X {
+        enum foos { Bar, Baz };
+        real[] reals;
+        int[string] ints;
+        MyConfig conf;
+        foos foo;
+        void qux(){}
+    }
+    private auto xjson = `{
         "foo" : "Baz",
         "reals" : [ 3.4, 7.2e+4, 5, 0, -33 ],
         "ints" : { "one": 1, "two": 2 },
@@ -689,8 +685,20 @@ unittest {
             "indentSpaces" : true
         }
     }`;
-
-    x = jsonDecode!X(xjson);
+}
+unittest{
+    /* Structured decode into user-defined type */
+    auto x = jsonDecode!X(`null`);
+    assert(x is null);
+}
+unittest{
+    auto x = jsonDecode!X(`{}`);
+    assert(x !is null);
+    assert(x.conf.indent == 2);
+    assert(x.foo == X.foos.Bar);
+}
+unittest{
+    auto x = jsonDecode!X(xjson);
     assert(x !is null);
     assert(x.foo == X.foos.Baz);
     assert(x.reals == [3.4L, 72000, 5, 0, -33]);
@@ -700,16 +708,19 @@ unittest {
     assert(x.conf.plugins == ["perl", "d"]);
     assert(x.conf.indent == 4);
     assert(x.conf.indentSpaces == true);
-
     /* Structured encode */
-    assert(jsonEncode(x) ==
-        `{"reals":[3.4,72000,5,0,-33],"ints":{"one":1,"two":2},"conf":{"encoding":"UTF-8","plugins":["perl","d"],"indent":4,"indentSpaces":true},"foo":"Baz"}`);
-
+    assert(
+        jsonEncode(x) ==
+        `{"reals":[3.4,72000,5,0,-33],"ints":{"one":1,"two":2},"conf":{"encoding":"UTF-8","plugins":["perl","d"],"indent":4,"indentSpaces":true},"foo":"Baz"}`
+    );
+}
+unittest{
     /* Structured decode into JsonValue */
     auto xv = jsonDecode(`null`);
     assert(xv.type() == typeid(JsonNull));
-
-    xv = jsonDecode(xjson);
+}
+unittest{
+    auto xv = jsonDecode(xjson);
     assert(xv["bogus"] == "ignore me");
     assert(xv["foo"] == "Baz");
     assert(xv["reals"][0] == 3.4L);
@@ -724,11 +735,13 @@ unittest {
     assert(xv["conf"]["plugins"][1] == "d");
     assert(xv["conf"]["indent"] == 4);
     assert(xv["conf"]["indentSpaces"] == true);
-
     /* Encode JsonValue back to JSON */
-    assert(jsonEncode(xv) ==
-        `{"bogus":"ignore me","conf":{"encoding":"UTF-8","indent":4,"indentSpaces":true,"plugins":["perl","d"]},"foo":"Baz","ints":{"one":1,"two":2},"reals":[3.4,72000,5,0,-33]}`);
-
+    assert(
+        jsonEncode(xv) ==
+        `{"bogus":"ignore me","conf":{"encoding":"UTF-8","indent":4,"indentSpaces":true,"plugins":["perl","d"]},"foo":"Baz","ints":{"one":1,"two":2},"reals":[3.4,72000,5,0,-33]}`
+    );
+}
+unittest{
     /* All truncated streams should be errors */
     foreach(i;iota(xjson.length)) {
         bool caught;
@@ -769,7 +782,8 @@ unittest {
             assert(caught);
         }
     }
-
+}
+unittest{
     /* Tests from std.json */
     auto jsons = [
         `null`,
@@ -790,13 +804,13 @@ unittest {
         `{"a":1,"b":null}`,
         `{"goodbye":[true,"or",false,["test",42,{"nested":{"a":23.54,"b":0.0012}}]],"hello":{"array":[12,null,{}],"json":"is great"}}`
     ];
-
     foreach(json; jsons) {
         auto v = jsonDecode(json);
         auto rt = jsonEncode(v);
         assert(rt == json, "roundtrip -> " ~ json);
     }
-
+}
+unittest{
     /* More tests from std.json */
     auto v = jsonDecode(`"\u003C\u003E"`);
     assert(jsonEncode(v) == "\"\&lt;\&gt;\"");
@@ -804,4 +818,18 @@ unittest {
     assert(jsonEncode(v) == "\"\&Alpha;\&Beta;\&Gamma;\"");
     v = jsonDecode(`"\u2660\u2666"`);
     assert(jsonEncode(v) == "\"\&spades;\&diams;\"");
+}
+unittest{    
+    // Encode/decode enum values
+    enum TestEnum{A, B, C}
+    enum IntEnum: int{A = 1, B = 2, C = 3}
+    enum CharEnum: char{A = 'a', B = 'b', C = 'c'}
+    struct EnumStruct{
+        TestEnum a;
+        IntEnum b;
+        CharEnum c;
+    }
+    auto enumstruct = EnumStruct(TestEnum.A, IntEnum.B, CharEnum.C);
+    auto json = enumstruct.jsonEncode();
+    assert(json.jsonDecode!EnumStruct == enumstruct);
 }
