@@ -347,7 +347,8 @@ T jsonDecode_impl(T, R)(ref R input)
         /* Determine type of value */
         static if(isAssociativeArray!T) {
             /* Arrays are composed of only one type */
-            obj[key] = jsonDecode_impl!(typeof(obj[key]))(input);
+            auto ckey = cast(KeyType!T) key;
+            obj[ckey] = jsonDecode_impl!(typeof(obj[ckey]))(input);
         } else {
             /* Get class and struct members from tupleof */
             bool didRead = false;
@@ -832,4 +833,12 @@ unittest{
     auto enumstruct = EnumStruct(TestEnum.A, IntEnum.B, CharEnum.C);
     auto json = enumstruct.jsonEncode();
     assert(json.jsonDecode!EnumStruct == enumstruct);
+}
+unittest{
+    // Character keys in AA
+    auto aa = jsonDecode!(int[char])(`{"a": 1, "b": 2, "c": 3}`);
+    assert('a' in aa);
+    assert('x' !in aa);
+    assert(aa['a'] == 1);
+    assert(aa['b'] == 2);
 }
