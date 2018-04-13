@@ -249,7 +249,8 @@ void jsonEncode_impl(S : T[K], T, K, A)(S arr, ref A app) {
     bool first = true;
 
     // XXX provide a way to disable sorting
-    foreach(key; arr.keys.sort) {
+    import std.algorithm : sort;
+    foreach(key; sort(arr.keys)) {
         if(!first)
             app.put(',');
 
@@ -410,7 +411,7 @@ T[] jsonDecode_impl(A : T[], T, R)(ref R input) if(isInputCharRange!R && !isSome
 }
 
 /* Decode JSON number -> D number */
-T jsonDecode_impl(T, R)(ref R input) if(isInputCharRange!R && isNumeric!T && !is(T == enum)) {
+T jsonDecode_impl(T, R)(ref R input) if(isInputCharRange!R && isNumeric!T && !is(T == enum) && !is(T == bool)) {
     /* Attempt decoding of JSON strings into D numbers
      * by ignoring surrounding quote marks if present */
     auto first = nextChar(input);
@@ -467,7 +468,7 @@ T jsonDecode_impl(T, R)(ref R input) if(isInputCharRange!R && isSomeString!T) {
                 /* We need to use the appender */
                 if(inputSave) {
                     app = Appender!T(inputSave[1 .. inputSave.length - input.length]);
-                    inputSave = null;                    
+                    inputSave = null;
                 }
             }
 
@@ -524,7 +525,7 @@ T jsonDecode_impl(T, R)(ref R input) if(isInputCharRange!R && isSomeString!T) {
                     }
 
                     /* Unicode escape state */
-                    wchar units[2];
+                    wchar[2] units;
 
                     /* Read first unit */
                     units[0] = nextUnit;
@@ -772,7 +773,7 @@ unittest{
             } catch(JsonException) {
                 caught = true;
             }
-            assert(caught);            
+            assert(caught);
 
             caught = false;
             try {
@@ -820,7 +821,7 @@ unittest{
     v = jsonDecode(`"\u2660\u2666"`);
     assert(jsonEncode(v) == "\"\&spades;\&diams;\"");
 }
-unittest{    
+unittest{
     // Encode/decode enum values
     enum TestEnum{A, B, C}
     enum IntEnum: int{A = 1, B = 2, C = 3}
